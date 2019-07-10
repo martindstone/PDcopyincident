@@ -69,14 +69,13 @@ def copyincident():
 		print("no token in request")
 		return "ok"
 
-	print(f"token is {token}")
-
 	body = request.get_json()
 	if body == None:
 		print("no JSON body")
 		return "ok"
 
 	try:
+		incident_url = body["messages"][0]["incident"]["html_url"]
 		message = body["messages"][0]
 		event = message['event']
 		print(f"event is {event}")
@@ -97,8 +96,8 @@ def copyincident():
 		del incident["incident"]["incident_key"]
 
 		incident_post_result = pd.request(api_key=token, endpoint="incidents", method="POST", data=incident, addheaders={"From": from_email})
-		print(incident_post_result)
 		new_incident_id = incident_post_result["incident"]["id"]
+		print(f"Copied incident {incident_url} to {new_incident_id}")
 
 		alerts_thread = Thread(target=process_alerts, args=(token, from_email, incident_id, new_incident_id))
 		alerts_thread.start()
