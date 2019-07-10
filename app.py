@@ -78,7 +78,6 @@ def copyincident():
 		incident_url = body["messages"][0]["incident"]["html_url"]
 		message = body["messages"][0]
 		event = message['event']
-		print(f"event is {event}")
 		if event != 'incident.custom':
 			print(f"Event is {event}, doing nothing")
 			return "ok"
