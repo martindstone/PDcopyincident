@@ -1,0 +1,6 @@
+{
+  "name": "PDcopyincident",
+  "description": "Custom action to copy a PD incident",
+  "repository": "https://github.com/martindstone/PDcopyincident",
+  "keywords": ["PDcopyincident"]
+}
