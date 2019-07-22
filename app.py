@@ -138,7 +138,7 @@ def merge_new_incident(token, user_id, service_id, incident_id, integration_id):
 	r = requests.post('https://events.pagerduty.com/v2/enqueue', json=alert_body)
 	print(r.json())
 
-	time.sleep(5)
+	time.sleep(10)
 
 	r = pd.request(api_key=token, endpoint='incidents', params={'incident_key': new_dedup_key})
 	new_incident_id = r["incidents"][0]["id"]
