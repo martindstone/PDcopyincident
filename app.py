@@ -6,6 +6,7 @@ import requests
 import traceback
 import time
 from threading import Thread
+import uuid
 
 import pd
 
@@ -104,6 +105,97 @@ def copyincident():
 		notes_thread = Thread(target=process_notes, args=(token, incident_id, new_incident_id))
 		notes_thread.start()
 		print(f"started thread for incident notes on {new_incident_id}")
+
+	except Exception as e:
+		traceback.print_exc()
+
+	r = "ok"
+	return r
+
+
+def merge_new_incident(token, user_id, service_id, incident_id, integration_id):
+	print(f"hi merge new incident {token} {user_id} {service_id} {incident_id}")
+	integration = pd.request(api_key=token, endpoint=f"services/{service_id}/integrations/{integration_id}")
+	integration_key = integration["integration"]["integration_key"]
+	print(f"integration key is {integration_key}")
+
+	user = pd.request(api_key=token, endpoint=f"users/{user_id}")
+	from_email = user['user']['email']
+	print(f"from email is {from_email}")
+
+	new_dedup_key = str(uuid.uuid4())
+	alert_body = {
+		"event_action": "trigger",
+		"routing_key": integration_key,
+		"dedup_key": new_dedup_key,
+		"payload": {
+			"summary": f"keepalive for {incident_id}",
+			"source": "PDkeepincident",
+			"severity": "info"
+		}
+	}
+	print("sending alert")
+	r = requests.post('https://events.pagerduty.com/v2/enqueue', json=alert_body)
+	print(r.json())
+
+	time.sleep(5)
+
+	r = pd.request(api_key=token, endpoint='incidents', params={'incident_key': new_dedup_key})
+	new_incident_id = r["incidents"][0]["id"]
+
+	print(f"new incident id is {new_incident_id}")
+
+	merge_body = {
+		"source_incidents": [
+			{
+				"id": new_incident_id,
+				"type": "incident_reference"
+			}
+		]
+	}
+
+	r = pd.request(api_key=token, endpoint=f"incidents/{incident_id}/merge", method="PUT", addheaders={"From": from_email}, data=merge_body)
+	print(r)
+
+
+@app.route('/keepincident', methods=['POST'])
+def keepincident():
+	token = request.args.get('token')
+	if token == None:
+		print("no token in request")
+		return "ok"
+
+	body = request.get_json()
+	if body == None:
+		print("no JSON body")
+		return "ok"
+
+	try:
+		message = body["messages"][0]
+		
+		event = message['event']
+		if event != 'incident.custom':
+			print(f"Event is {event}, doing nothing")
+			return "ok"
+
+		incident_url = message["incident"]["html_url"]
+		incident_id = message["incident"]["id"]
+		user_id = message['log_entries'][0]['agent']['id']
+		service_id = message["incident"]["service"]["id"]
+		integration_id = None
+		integrations = message["incident"]["service"]["integrations"]
+		for integration in integrations:
+			if integration["type"] == "events_api_v2_inbound_integration_reference":
+				integration_id = integration["id"]
+				break
+
+		if integration_id == None:
+			print(f"No v2 integration for incident {incident_id} in service {service_id}")
+			return "ok"
+
+		merge_thread = Thread(target=merge_new_incident, args=(token, user_id, service_id, incident_id, integration_id))
+		merge_thread.start()
+		print(f"started thread for merge new incident {incident_id}")
 
 	except Exception as e:
 		traceback.print_exc()
