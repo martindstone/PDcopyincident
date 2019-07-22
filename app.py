@@ -138,9 +138,16 @@ def merge_new_incident(token, user_id, service_id, incident_id, integration_id):
 	r = requests.post('https://events.pagerduty.com/v2/enqueue', json=alert_body)
 	print(r.json())
 
-	time.sleep(10)
-
+	tries = 0
+	time.sleep(1)
 	r = pd.request(api_key=token, endpoint='incidents', params={'incident_key': new_dedup_key})
+
+	while ( r.get("incidents") == None or len(r["incidents"]) < 1 or tries < 30 ):
+		print(f"no incident yet; sleeping...")
+		tries += 1
+		time.sleep(1)
+		r = pd.request(api_key=token, endpoint='incidents', params={'incident_key': new_dedup_key})
+
 	new_incident_id = r["incidents"][0]["id"]
 
 	print(f"new incident id is {new_incident_id}")
@@ -180,6 +187,12 @@ def keepincident():
 
 		incident_url = message["incident"]["html_url"]
 		incident_id = message["incident"]["id"]
+
+		incident_status = message["incident"]["status"]
+		if incident_status == 'resolved':
+			print(f"incident {incident_id} is resolved, can't do anything")
+			return "ok"
+
 		user_id = message['log_entries'][0]['agent']['id']
 		service_id = message["incident"]["service"]["id"]
 		integration_id = None
